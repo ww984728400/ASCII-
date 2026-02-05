@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASCII 艺术生成器 Pro / ASCII Art Generator Pro</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+  --bg: #050505;
+  --panel: #111111;
+  --border: #333333;
+  --text: #00ff00;
+  --accent: #00cc00;
+  --primary: #009900;
+  --secondary: #004400;
+  --terminal: #000a00;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  background: var(--bg);
+  font-family: 'Courier New', monospace;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 顶部标题栏 */
+header {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+h1 { font-size: 16px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+
+/* 主容器布局 */
+.app {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: calc(100vh - 50px);
+}
+
+/* 上部：预览区 (80%) */
+.viewer {
+  flex: 0 0 78%; 
+  background: var(--terminal);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 2px solid var(--border);
+}
+
+.canvas-wrap {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+              linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05));
+  background-size: 100% 4px, 3px 100%;
+}
+
+#asciiOutput {
+  white-space: pre;
+  font-family: 'Courier New', monospace;
+  line-height: 1;
+  letter-spacing: 0;
+  transition: all 0.2s;
+}
+
+/* 下部：功能区 (20%) */
+.panel {
+  flex: 1;
+  background: var(--panel);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid #222;
+  padding-right: 10px;
+}
+
+.group:last-child { border-right: none; }
+
+.group-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 4px;
+  font-weight: bold;
+  border-bottom: 1px solid var(--secondary);
+}
+
+.label { font-size: 11px; display: flex; justify-content: space-between; }
+input[type="range"] { accent-color: var(--primary); height: 4px; cursor: pointer; }
+input[type="color"] { 
+  width: 100%; height: 25px; background: none; border: 1px solid var(--border); cursor: pointer;
+}
+
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+
+button {
+  padding: 5px;
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover { background: var(--secondary); border-color: var(--primary); }
+button.primary { background: var(--primary); color: #000; font-weight: bold; border-color: var(--accent); }
+
+input[type="text"], select {
+  background: #000;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  padding: 3px;
+  font-family: inherit;
+}
+
+.loading {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.85); padding: 20px; border: 1px solid var(--primary);
+  display: none; z-index: 10; font-size: 14px;
+}
+
+@media (max-width: 1000px) {
+  .panel { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><i class="fas fa-terminal"></i> ASCII 艺术生成器 / ASCII ART GENERATOR</h1>
+  <div id="sizeInfo" style="font-size: 11px; color: var(--secondary);">尺寸: 0x0 / Size: 0x0</div>
+</header>
+
+<div class="app">
+  <div class="viewer">
+    <div class="canvas-wrap">
+      <pre id="asciiOutput">请上传图片开始生成 / UPLOAD AN IMAGE TO START_</pre>
+      <div class="loading" id="loading">正在处理... / PROCESSING...</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="group">
+      <div class="group-title">源文件与尺寸 / Source & Size</div>
+      <button onclick="$('fileInput').click()" class="primary">
+        <i class="fas fa-upload"></i> 选择图片 / SELECT IMAGE
+      </button>
+      <input id="fileInput" type="file" accept="image/*" style="display: none;">
+      
+      <div class="label">宽度 / Width <span id="widthVal">80</span></div>
+      <input type="range" id="width" min="20" max="300" value="80">
+      
+      <div class="label">字号 / Font Size <span id="fontSizeVal">12px</span></div>
+      <input type="range" id="fontSize" min="4" max="24" value="12">
+    </div>
+
+    <div class="group">
+      <div class="group-title">外观色彩 / Appearance</div>
+      <div class="label">字符颜色 / Custom Color</div>
+      <input type="color" id="charColor" value="#00ff00">
+      
+      <div style="margin-top:5px; display: flex; flex-direction: column; gap: 4px;">
+        <label style="font-size:10px;"><input type="checkbox" id="colorize"> 原图颜色 / Image Color</label>
+        <label style="font-size:10px;"><input type="checkbox" id="invert" checked> 反转亮度 / Invert Luma</label>
+        <label style="font-size:10px; color: #ffaa00;"><input type="checkbox" id="transparentBg"> 透明背景 / Transparent BG</label>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">参数调整 / Adjustments</div>
+      <div class="label">对比度 / Contrast <span id="contrastVal">1.0</span></div>
+      <input type="range" id="contrast" min="0.5" max="2.0" step="0.1" value="1.0">
+      
+      <div class="label">抖动效果 / Dithering</div>
+      <select id="dithering">
+        <option value="false">无 / None</option>
+        <option value="true">Floyd-Steinberg</option>
+      </select>
+    </div>
+
+    <div class="group">
+      <div class="group-title">字符集 / Charset</div>
+      <div class="btn-grid">
+        <button onclick="setCharset('@%#*+=-:. ')">标准/Std</button>
+        <button onclick="setCharset(' ░▒▓█')">块状/Block</button>
+        <button onclick="setCharset('01')">二进制/Bin</button>
+        <button onclick="setCharset(' .:-=+*#%@')">反转/Inv</button>
+      </div>
+      <input type="text" id="customCharset" placeholder="自定义字符... / Custom...">
+    </div>
+
+    <div class="group">
+      <div class="group-title">导出与保存 / Export</div>
+      <button onclick="copyToClipboard()"><i class="fas fa-copy"></i> 复制文本 / COPY TEXT</button>
+      <button onclick="downloadText()"><i class="fas fa-file-alt"></i> 下载文本 / SAVE TXT</button>
+      <button class="primary" onclick="saveAsImage()"><i class="fas fa-image"></i> 保存图片 / EXPORT IMAGE</button>
+      <button onclick="resetSettings()" style="font-size:9px; opacity:0.5; margin-top: auto;">重置 / RESET</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let originalImage = null;
+let asciiOutput = "";
+let currentColorMap = [];
+const $ = id => document.getElementById(id);
+
+function init() {
+    ["width", "contrast", "fontSize", "charColor", "invert", "colorize", "dithering", "customCharset"].forEach(id => {
+        $(id).addEventListener("input", () => {
+            updateLabels();
+            if (originalImage) generateAsciiArt();
+        });
+    });
+
+    $("fileInput").onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                originalImage = img;
+                generateAsciiArt();
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+    updateLabels();
+}
+
+function updateLabels() {
+    $("widthVal").textContent = $("width").value;
+    $("contrastVal").textContent = (+$("contrast").value).toFixed(1);
+    $("fontSizeVal").textContent = $("fontSize").value + "px";
+    
+    if (!$("colorize").checked) {
+        $("asciiOutput").style.color = $("charColor").value;
+    }
+}
+
+function setCharset(chars) {
+    $("customCharset").value = chars;
+    generateAsciiArt();
+}
+
+function generateAsciiArt() {
+    if (!originalImage) return;
+    $("loading").style.display = "block";
+
+    setTimeout(() => {
+        const width = +$("width").value;
+        const contrast = +$("contrast").value;
+        const invert = $("invert").checked;
+        const colorize = $("colorize").checked;
+        const dithering = $("dithering").value === "true";
+        const charset = $("customCharset").value || "@%#*+=-:. ";
+        const charColor = $("charColor").value;
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const aspectRatio = originalImage.height / originalImage.width;
+        const outputWidth = width;
+        const outputHeight = Math.floor(outputWidth * aspectRatio * 0.55);
+
+        canvas.width = outputWidth;
+        canvas.height = outputHeight;
+        ctx.drawImage(originalImage, 0, 0, outputWidth, outputHeight);
+        
+        const imageData = ctx.getImageData(0, 0, outputWidth, outputHeight);
+        const data = imageData.data;
+        
+        let art = "";
+        currentColorMap = [];
+
+        for (let y = 0; y < outputHeight; y++) {
+            let rowColors = [];
+            for (let x = 0; x < outputWidth; x++) {
+                const i = (y * outputWidth + x) * 4;
+                let r = data[i], g = data[i+1], b = data[i+2];
+                
+                let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                gray = ((gray - 128) * contrast) + 128;
+                if (invert) gray = 255 - gray;
+                gray = Math.max(0, Math.min(255, gray));
+
+                const charIdx = Math.floor((gray / 255) * (charset.length - 1));
+                art += charset[charIdx] || " ";
+                rowColors.push(`rgb(${r},${g},${b})`);
+            }
+            art += "\n";
+            currentColorMap.push(rowColors);
+        }
+
+        asciiOutput = art;
+        const out = $("asciiOutput");
+        out.style.fontSize = $("fontSize").value + "px";
+        
+        if (colorize) {
+            let html = "";
+            const lines = art.split("\n");
+            for (let y = 0; y < lines.length - 1; y++) {
+                html += "<div>";
+                for (let x = 0; x < lines[y].length; x++) {
+                    const char = lines[y][x];
+                    const color = currentColorMap[y][x];
+                    html += `<span style="color:${color}">${char === ' ' ? '&nbsp;' : char}</span>`;
+                }
+                html += "</div>";
+            }
+            out.innerHTML = html;
+        } else {
+            out.textContent = art;
+            out.style.color = charColor;
+        }
+
+        $("sizeInfo").textContent = `尺寸: ${outputWidth}x${outputHeight} 字符 / Size: ${outputWidth}x${outputHeight} Chars`;
+        $("loading").style.display = "none";
+    }, 50);
+}
+
+function copyToClipboard() {
+    navigator.clipboard.writeText(asciiOutput);
+    alert("已复制到剪贴板！ / Copied to clipboard!");
+}
+
+function downloadText() {
+    const blob = new Blob([asciiOutput], {type: 'text/plain'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ascii-art-${Date.now()}.txt`;
+    a.click();
+}
+
+async function saveAsImage() {
+    const fontSize = +$("fontSize").value;
+    const colorize = $("colorize").checked;
+    const isTransparent = $("transparentBg").checked;
+    const lines = asciiOutput.split("\n").filter(l => l.length > 0);
+    if(lines.length === 0) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const charW = fontSize * 0.6;
+    const charH = fontSize;
+    
+    canvas.width = lines[0].length * charW + 40;
+    canvas.height = lines.length * charH + 40;
+    
+    // 如果不勾选透明，则填充黑色背景
+    if (!isTransparent) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+        // 确保画布是清除状态（透明）
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    ctx.font = `${fontSize}px 'Courier New', monospace`;
+    
+    lines.forEach((line, y) => {
+        [...line].forEach((char, x) => {
+            ctx.fillStyle = colorize ? currentColorMap[y][x] : $("charColor").value;
+            ctx.fillText(char, x * charW + 20, y * charH + 20 + (fontSize*0.8));
+        });
+    });
+    
+    const link = document.createElement('a');
+    link.download = `ascii-art-${isTransparent ? 'transparent-' : ''}${Date.now()}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+}
+
+function resetSettings() {
+    if(confirm("确定要重置所有设置吗？ / Reset all settings?")) {
+        location.reload();
+    }
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
